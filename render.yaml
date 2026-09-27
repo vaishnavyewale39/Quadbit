@@ -1,0 +1,52 @@
+# Render Blueprint — RAKSHA Safety Alert System
+# Deploy both backend (Web Service) and frontend (Static Site) together.
+# Usage: Push to GitHub, then go to https://render.com/deploy and select this repo.
+
+services:
+  # ─── Backend: Node.js Express API ───
+  - type: web
+    name: raksha-backend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      # Set these in the Render dashboard after deployment:
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASS
+        sync: false
+      - key: FAST2SMS_API_KEY
+        sync: false
+      # The frontend URL will be set after the static site is created
+      - key: FRONTEND_URL
+        sync: false
+
+  # ─── Frontend: React + Vite Static Site ───
+  - type: web
+    name: raksha-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Set this to your deployed backend URL after backend is live
+      # e.g. https://raksha-backend.onrender.com
+      - key: VITE_BACKEND_URL
+        sync: false

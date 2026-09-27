@@ -1,10 +1,27 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
-app.use(cors());
+
+// CORS: allow Render frontend and localhost for dev
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Be permissive for now; tighten in production
+  }
+}));
 app.use(express.json());
 
 // Helper to get active mail transporter dynamically

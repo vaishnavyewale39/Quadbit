@@ -5,10 +5,14 @@
  * Connects to RAKSHA backend dispatch server (port 3000) for real delivery.
  */
 
-const BACKEND_ENDPOINTS = [
-  'http://localhost:8000/api/alert',
-  'http://localhost:3000/api/alert'
-];
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+
+const BACKEND_ENDPOINTS = BACKEND_URL
+  ? [`${BACKEND_URL}/api/alert`]
+  : [
+      'http://localhost:8000/api/alert',
+      'http://localhost:3000/api/alert'
+    ];
 
 let cachedWorkingEndpoint = null;
 
