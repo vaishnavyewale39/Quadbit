@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import AddTrustedContactDialog from './AddTrustedContactDialog';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 
@@ -265,30 +265,17 @@ const TrustedContacts = ({
                   <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     {isActive ? (
                       <>
-                        {/* SMS Status Badge */}
-                        <span style={{
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          color: delivery?.sms?.success !== false ? 'var(--safe-green)' : 'var(--alert-red)',
-                          backgroundColor: delivery?.sms?.success !== false ? 'rgba(112, 180, 138, 0.15)' : 'rgba(201, 92, 92, 0.12)',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          border: delivery?.sms?.success !== false ? '1px solid rgba(112, 180, 138, 0.35)' : '1px solid rgba(201, 92, 92, 0.35)'
-                        }}>
-                          {delivery?.sms?.success !== false ? '✓ SMS Sent' : '✕ SMS Failed'}
-                        </span>
-
                         {/* Email Status Badge */}
                         <span style={{
                           fontSize: '10px',
                           fontWeight: 700,
-                          color: delivery?.email?.success !== false ? 'var(--safe-green)' : 'var(--alert-red)',
-                          backgroundColor: delivery?.email?.success !== false ? 'rgba(112, 180, 138, 0.15)' : 'rgba(201, 92, 92, 0.12)',
+                          color: delivery?.email?.success ? 'var(--safe-green)' : (delivery ? 'var(--alert-red)' : 'var(--text-secondary)'),
+                          backgroundColor: delivery?.email?.success ? 'rgba(112, 180, 138, 0.15)' : 'rgba(201, 92, 92, 0.12)',
                           padding: '2px 8px',
                           borderRadius: '4px',
-                          border: delivery?.email?.success !== false ? '1px solid rgba(112, 180, 138, 0.35)' : '1px solid rgba(201, 92, 92, 0.35)'
+                          border: delivery?.email?.success ? '1px solid rgba(112, 180, 138, 0.35)' : '1px solid rgba(201, 92, 92, 0.35)'
                         }}>
-                          {delivery?.email?.success !== false ? '✓ Email Sent' : '✕ Email Failed'}
+                          {delivery?.email?.success ? '✓ Email Sent' : (delivery ? '✕ Email Failed' : '● Email Pending')}
                         </span>
                       </>
                     ) : (

@@ -10,13 +10,13 @@ const SilentAlert = ({
   alertDispatchResult = null,
   onResolveSafe
 }) => {
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
   if (!isDistress) return null;
 
   const effectiveContacts = (contacts && contacts.length > 0 ? contacts : activeContacts).filter(
     (c) => c.status === 'Active' || !c.status
   );
-
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Fallback to location service URL if coordinates are available
   const mapUrl = locationData?.mapUrl || 
@@ -252,7 +252,7 @@ const SilentAlert = ({
                   <div style={{ fontWeight: 700, color: 'var(--alert-red)', marginBottom: '4px' }}>
                     🚨 RAKSHA SAFETY ALERT
                   </div>
-                  <div>A potential distress event has been detected.</div>
+                  <div>A critical distress condition was detected by the RAKSHA monitoring system.</div>
                   <div>Please check on the user immediately.</div>
                   <div style={{ marginTop: '8px' }}>
                     <strong>Location:</strong>{' '}
@@ -265,10 +265,20 @@ const SilentAlert = ({
                       [Open Location in Google Maps ↗]
                     </a>
                   </div>
+                  <div><strong>Live Tracker:</strong>{' '}
+                    <a 
+                      href="http://localhost:3000/track/active" 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      style={{ color: 'var(--warning-amber)', textDecoration: 'underline' }}
+                    >
+                      [Open Live Coordinates Tracker ↗]
+                    </a>
+                  </div>
                   <div><strong>Time:</strong> {new Date().toLocaleTimeString()}</div>
                   <div><strong>Signal:</strong> {detectedTrigger}</div>
                   <div style={{ marginTop: '6px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                    This is an automated safety alert from RAKSHA.
+                    Dispatched via Gmail SMTP.
                   </div>
                 </div>
               </div>
@@ -291,8 +301,7 @@ const SilentAlert = ({
                   {effectiveContacts.map((contact, idx) => {
                     const delivery = alertDispatchResult?.results?.find((r) => r.contactId === contact.id);
 
-                                        const emailPreviewUrl = delivery?.email?.previewUrl;
-                    
+                    const emailPreviewUrl = delivery?.email?.previewUrl;
                     const smsHref = `sms:${contact.phone ? contact.phone.replace(/\s+/g, '') : ''}?body=${encodeURIComponent(alertPayloadText)}`;
                     const mailtoHref = `mailto:${contact.email || ''}?subject=${encodeURIComponent('🚨 RAKSHA EMERGENCY SAFETY ALERT')}&body=${encodeURIComponent(alertPayloadText)}`;
 
@@ -324,56 +333,23 @@ const SilentAlert = ({
 
                           {/* Status Pills */}
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                        {/* SMS Status */}
-                            <span style={{
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              color: 'var(--safe-green)',
-                              backgroundColor: 'rgba(112, 180, 138, 0.15)',
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                              border: '1px solid rgba(112, 180, 138, 0.3)'
-                            }}>
-                              ✓ SMS Sent
-                            </span>
-
                             {/* Email Status */}
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 700,
-                              color: 'var(--safe-green)',
-                              backgroundColor: 'rgba(112, 180, 138, 0.15)',
+                              color: delivery?.email?.success ? 'var(--safe-green)' : (delivery ? 'var(--alert-red)' : 'var(--text-secondary)'),
+                              backgroundColor: delivery?.email?.success ? 'rgba(112, 180, 138, 0.15)' : 'rgba(201, 92, 92, 0.12)',
                               padding: '3px 8px',
                               borderRadius: '4px',
-                              border: '1px solid rgba(112, 180, 138, 0.3)'
+                              border: delivery?.email?.success ? '1px solid rgba(112, 180, 138, 0.3)' : '1px solid rgba(201, 92, 92, 0.3)'
                             }}>
-                              ✓ Email Sent
+                              {delivery?.email?.success ? '✓ Email Delivered' : (delivery ? '✕ Email Failed' : '● Email Queued')}
                             </span>
                           </div>
                         </div>
 
                         {/* Interactive Direct Actions */}
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '4px' }}>
-                          {/* Native SMS Trigger */}
-                          <a
-                            href={smsHref}
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: '4px',
-                              backgroundColor: 'rgba(123, 174, 140, 0.12)',
-                              border: '1px solid rgba(123, 174, 140, 0.3)',
-                              color: 'var(--primary-accent)',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            📱 Send Native SMS from Device ↗
-                          </a>
-
                           {/* Native Mailto Trigger */}
                           <a
                             href={mailtoHref}
@@ -392,6 +368,26 @@ const SilentAlert = ({
                             }}
                           >
                             ✉️ Open in Email App ↗
+                          </a>
+
+                          {/* Native SMS Trigger */}
+                          <a
+                            href={smsHref}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(123, 174, 140, 0.12)',
+                              border: '1px solid rgba(123, 174, 140, 0.3)',
+                              color: 'var(--primary-accent)',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            📱 Send Native SMS from Device ↗
                           </a>
 
                           {/* Live Web Inbox Preview if available */}
@@ -437,7 +433,7 @@ const SilentAlert = ({
               }}>
                 <strong style={{ color: 'var(--warning-amber)' }}>💡 How to receive on your real personal Gmail & Phone:</strong>
                 <div style={{ marginTop: '4px' }}>
-                  Open <code>AURA/backend/.env</code> and enter your <strong>GMAIL_USER</strong> and 16-character <strong>GMAIL_APP_PASS</strong> (from <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-accent)' }}>myaccount.google.com/apppasswords</a>). For SMS, enter your <strong>TWILIO_ACCOUNT_SID</strong> and <strong>TWILIO_PHONE_NUMBER</strong>.
+                  Open <code>RAKSHA/backend/.env</code> and enter your <strong>GMAIL_USER</strong> and 16-character <strong>GMAIL_APP_PASS</strong> (from <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-accent)' }}>myaccount.google.com/apppasswords</a>). For SMS, enter your <strong>FAST2SMS_API_KEY</strong>.
                 </div>
               </div>
 

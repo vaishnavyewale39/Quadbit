@@ -15,14 +15,14 @@ import ActivityLog from './components/ActivityLog';
 
 // Integrated Services
 import { getCurrentLocation, watchLocation, stopWatchingLocation } from './services/locationService';
-import { dispatchAlertToActiveContacts } from './services/notificationService';
+import { dispatchAlertToActiveContacts, fetchBackendStatus, updateLiveLocation } from './services/notificationService';
 
-// Default Trusted Contacts Seed
+// Default Trusted Contacts Seed (Primary recipient configured for Email alerts)
 const DEFAULT_CONTACTS = [
   {
     id: 'c1',
-    name: 'Priya Sharma',
-    relationship: 'Sister',
+    name: 'Vaishnav Yewale',
+    relationship: 'Brother',
     phone: '+91 9987892147',
     email: 'vaishnavyewale39@gmail.com',
     priority: 'Primary',
@@ -48,6 +48,44 @@ const DEFAULT_CONTACTS = [
   }
 ];
 
+const DEFAULT_SECRET_PHRASES = [
+  {
+    id: '1',
+    phrase: 'Check the oven',
+    condition: 'Multi-signal (Phrase + High Stress)',
+    action: 'Activate Silent Alert & Notify Trusted Contacts',
+    enabled: true
+  },
+  {
+    id: '2',
+    phrase: 'Your voice breaking',
+    condition: 'Phrase detected once',
+    action: 'Activate Silent Alert & Notify Trusted Contacts',
+    enabled: true
+  },
+  {
+    id: '3',
+    phrase: 'Please help',
+    condition: 'Phrase detected during elevated voice stress',
+    action: 'Activate Silent Alert & Notify Trusted Contacts',
+    enabled: true
+  },
+  {
+    id: '4',
+    phrase: 'मुझे मदद चाहिए',
+    condition: 'Phrase detected once',
+    action: 'Activate Silent Alert & Notify Trusted Contacts',
+    enabled: true
+  },
+  {
+    id: '5',
+    phrase: 'मला मदत हवी आहे',
+    condition: 'Phrase detected once',
+    action: 'Activate Silent Alert & Notify Trusted Contacts',
+    enabled: true
+  }
+];
+
 function App() {
   // Session & Protection States
   const [isCallActive, setIsCallActive] = useState(false);
@@ -59,6 +97,11 @@ function App() {
   const [distressScore, setDistressScore] = useState(0);
   const [thresholdSensitivity, setThresholdSensitivity] = useState(60);
 
+  // Speech Recognition & Multilingual States
+  const [selectedLanguage, setSelectedLanguage] = useState('en-US');
+  const selectedLanguageRef = useRef('en-US');
+  const [speechSupported, setSpeechSupported] = useState(true);
+
   // Transcription States
   const [transcript, setTranscript] = useState([]);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -67,31 +110,31 @@ function App() {
   // Location & Alert Dispatch States
   const [locationData, setLocationData] = useState(null);
   const [alertDispatchResult, setAlertDispatchResult] = useState(null);
+  const [backendStatus, setBackendStatus] = useState(null);
 
-  // Multiple Secret Phrases
-  const [secretPhrases, setSecretPhrases] = useState([
-    {
-      id: '1',
-      phrase: 'check the oven',
-      condition: 'Multi-signal (Phrase + High Stress)',
-      action: 'Activate Silent Alert & Notify Trusted Contacts',
-      enabled: true
-    },
-    {
-      id: '2',
-      phrase: 'did you feed the dog?',
-      condition: 'Phrase detected once',
-      action: 'Activate Silent Alert & Notify Trusted Contacts',
-      enabled: true
-    },
-    {
-      id: '3',
-      phrase: 'bring my charger',
-      condition: 'Phrase detected during elevated voice stress',
-      action: 'Activate Silent Alert & Notify Trusted Contacts',
-      enabled: true
-    }
-  ]);
+  // Multiple Multilingual Secret Phrases (English, Hindi, Marathi)
+  const [secretPhrases, setSecretPhrases] = useState(() => {
+    try {
+      const saved = localStorage.getItem('raksha_secret_phrases');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge default Hindi/Marathi phrases if missing
+          const existingPhrases = new Set(parsed.map(p => p.phrase.trim()));
+          const missing = DEFAULT_SECRET_PHRASES.filter(dp => !existingPhrases.has(dp.phrase.trim()));
+          return [...parsed, ...missing];
+        }
+      }
+    } catch {}
+    return DEFAULT_SECRET_PHRASES;
+  });
+
+  const handleUpdatePhrases = (updated) => {
+    setSecretPhrases(updated);
+    try {
+      localStorage.setItem('raksha_secret_phrases', JSON.stringify(updated));
+    } catch {}
+  };
 
   // Trusted Contacts with LocalStorage Persistence
   const [trustedContacts, setTrustedContacts] = useState(() => {
@@ -124,8 +167,8 @@ function App() {
   // Human Activity Events Log
   const [activityEvents, setActivityEvents] = useState([
     { time: '10:40:02', text: 'RAKSHA system initialized', type: 'normal' },
-    { time: '10:40:05', text: 'Trusted contact network verified (3 active)', type: 'safe' },
-    { time: '10:40:10', text: 'Multi-signal distress verification armed', type: 'safe' }
+    { time: '10:40:05', text: 'Trusted contact network verified (Email)', type: 'safe' },
+    { time: '10:40:10', text: 'Multilingual speech monitoring armed (EN / HI / MR)', type: 'safe' }
   ]);
 
   // Audio Context & Analyser State
@@ -153,6 +196,32 @@ function App() {
     setActivityEvents((prev) => [...prev, { time, text, type }]);
   };
 
+  // Poll backend status on mount and periodically
+  useEffect(() => {
+    let mounted = true;
+    const checkStatus = async () => {
+      try {
+        const status = await fetchBackendStatus();
+        if (mounted) setBackendStatus(status);
+      } catch {}
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 15000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Check Web Speech API availability on load
+  useEffect(() => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setSpeechSupported(false);
+      logActivity('Web Speech API not found in this browser. Use Chrome/Edge for live transcription.', 'normal');
+    }
+  }, []);
+
   // Call Duration Timer
   useEffect(() => {
     if (isCallActive) {
@@ -165,12 +234,36 @@ function App() {
     return () => clearInterval(timerIntervalRef.current);
   }, [isCallActive]);
 
-  // Trigger Distress Protocol with Unified Alert Pipeline (Requirement #13, #14, #24)
+  // Handle Speech Language Change (English / Hindi / Marathi)
+  const handleLanguageChange = (newLang) => {
+    setSelectedLanguage(newLang);
+    selectedLanguageRef.current = newLang;
+    const langNames = {
+      'en-US': 'English',
+      'hi-IN': 'Hindi (हिन्दी)',
+      'mr-IN': 'Marathi (मराठी)'
+    };
+    logActivity(`Speech recognition set to ${langNames[newLang] || newLang}. Live transcription will output in native Devanagari script.`, 'normal');
+
+    if (speechRecRef.current) {
+      try {
+        speechRecRef.current.lang = newLang;
+        if (isMonitoringRef.current) {
+          // Restart speech recognition seamlessly in the new language
+          speechRecRef.current.abort();
+        }
+      } catch (err) {
+        console.warn('Speech language switch note:', err);
+      }
+    }
+  };
+
+  // Trigger Distress Protocol with Unified Email Alert Pipeline
   const triggerDistress = async (reason, matchedPhrase = null) => {
     // Prevent duplicate alert triggers for the same event
     if (isDistress || alertIdRef.current) return;
 
-    const currentAlertId = `alert-${Date.now()}`;
+    const currentAlertId = `emg-${Date.now()}`;
     alertIdRef.current = currentAlertId;
 
     setIsDistress(true);
@@ -187,45 +280,63 @@ function App() {
     setLocationData(loc);
     logActivity(`GPS fix confirmed (~${loc.accuracy}m accuracy). Location tunnel open.`, 'safe');
 
-    // 2. Dispatch Alerts to all ACTIVE trusted contacts
+    // 2. Dispatch Alerts to all ACTIVE trusted contacts (Email concurrently)
     const alertPayload = {
       locationLink: loc.mapUrl,
       timestamp: new Date().toLocaleTimeString(),
-      detectedTrigger: triggerDesc
+      detectedTrigger: triggerDesc,
+      emergencyId: currentAlertId
     };
 
     const dispatchResult = await dispatchAlertToActiveContacts(trustedContacts, alertPayload);
     setAlertDispatchResult(dispatchResult);
 
     const activeCount = dispatchResult.activeCount;
-    logActivity(
-      `Emergency payload dispatched to ${activeCount} active trusted contact${activeCount === 1 ? '' : 's'} (SMS + Email)`,
-      'safe'
-    );
+    const dispatchedCount = dispatchResult.dispatchedCount || 0;
+    const channels = [
+      dispatchResult.successfulEmailCount > 0 ? 'Email' : null,
+      dispatchResult.successfulSmsCount > 0 ? 'SMS' : null
+    ].filter(Boolean).join(' + ');
 
-    // 3. Start live location watching during alert
+    if (dispatchedCount > 0) {
+      logActivity(
+        `Emergency payload dispatched to ${dispatchedCount} of ${activeCount} active trusted contact${activeCount === 1 ? '' : 's'}${channels ? ` (${channels})` : ''}`,
+        'safe'
+      );
+    } else {
+      logActivity(
+        `Emergency payload dispatched locally; backend server on port 3000 will deliver when online`,
+        'alert'
+      );
+    }
+
+    // 3. Start live continuous location watching & backend sync during alert
     const watchId = watchLocation(
       (updatedLoc) => {
         setLocationData((prev) => ({ ...prev, ...updatedLoc }));
+        updateLiveLocation(currentAlertId, updatedLoc, trustedContacts[0]?.name || 'Protected User');
       },
-      (err) => console.warn('Live location watch error:', err)
+      (err) => console.warn('Live location watch note:', err)
     );
     locationWatchIdRef.current = watchId;
   };
 
-  // Evaluate Secret Phrase Matches
+  // Evaluate Secret Phrase Matches (Supports English case-insensitively & Hindi/Marathi Devanagari)
   const evaluateSpeech = (spokenText) => {
+    if (!spokenText) return;
     const lower = spokenText.toLowerCase();
 
     for (const item of secretPhrases) {
       if (!item.enabled) continue;
-      const phraseLower = item.phrase.toLowerCase();
+      const phraseClean = item.phrase.trim();
+      const phraseLower = phraseClean.toLowerCase();
 
-      if (lower.includes(phraseLower)) {
+      // Check substring or word match (case-insensitive for English, direct Devanagari match)
+      if (lower.includes(phraseLower) || spokenText.includes(phraseClean)) {
         logActivity(`Secret phrase detected: "${item.phrase}"`, 'phrase');
 
         if (item.condition.includes('once')) {
-          triggerDistress(`Configured phrase detected`, item.phrase);
+          triggerDistress(`Configured phrase detected ("${item.phrase}")`, item.phrase);
           return;
         } else if (item.condition.includes('stress') || item.condition.includes('Multi-signal')) {
           setDistressScore((prev) => Math.min(100, Math.max(prev, 75)));
@@ -234,20 +345,20 @@ function App() {
             triggerDistress(`Multi-signal threshold met (Phrase + Voice Stress)`, item.phrase);
             return;
           } else {
-            logActivity(`Phrase flagged. Listening for corroborating acoustic stress.`, 'phrase');
+            logActivity(`Phrase flagged: "${item.phrase}". Listening for corroborating acoustic stress.`, 'phrase');
           }
         } else {
-          triggerDistress(`Secret phrase detected`, item.phrase);
+          triggerDistress(`Secret phrase detected ("${item.phrase}")`, item.phrase);
           return;
         }
       }
     }
   };
 
-  // Start / Stop Microphone & Speech Loop
+  // Start / Stop Microphone & Continuous Speech Recognition Loop
   const toggleCall = async () => {
     if (isCallActive) {
-      // Stop
+      // Stop monitoring
       isMonitoringRef.current = false;
       setIsCallActive(false);
       setInterimTranscript('');
@@ -273,7 +384,7 @@ function App() {
       setAnalyserNode(null);
       setAcousticDb(0.0);
     } else {
-      // Start
+      // Start monitoring
       try {
         logActivity('Requesting microphone permission...', 'normal');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -328,18 +439,19 @@ function App() {
         };
         updateAcousticMetrics();
 
-        // Speech Recognition Loop
+        // Speech Recognition Loop (Supporting English, Hindi, and Marathi in Devanagari)
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRec) {
           const recognition = new SpeechRec();
           recognition.continuous = true;
           recognition.interimResults = true;
-          recognition.lang = navigator.language || 'en-US';
+          recognition.lang = selectedLanguageRef.current || 'en-US';
 
           recognition.onresult = (event) => {
             let interim = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
               const res = event.results[i];
+              // Devanagari script is preserved natively from browser speech engine
               const text = res[0].transcript;
               if (res.isFinal) {
                 const trimmed = text.trim();
@@ -359,13 +471,18 @@ function App() {
             if (event.error === 'no-speech' || event.error === 'aborted') {
               return;
             }
-            console.warn('Speech recognition warning:', event.error);
+            if (event.error === 'language-not-supported') {
+              logActivity(`Speech engine note: ${selectedLanguageRef.current} not locally supported by browser. Falling back.`, 'normal');
+              return;
+            }
+            console.warn('Speech recognition notice:', event.error);
           };
 
           recognition.onend = () => {
             // Keep running seamlessly as long as monitoring is enabled
             if (isMonitoringRef.current) {
               try {
+                recognition.lang = selectedLanguageRef.current;
                 recognition.start();
               } catch (e) {
                 // Ignore if in-process
@@ -379,8 +496,10 @@ function App() {
             console.warn('Speech recognition start notice:', e);
           }
           speechRecRef.current = recognition;
-          logActivity('Live transcription pipeline initialized.', 'normal');
+          const langDisplay = selectedLanguageRef.current === 'hi-IN' ? 'Hindi (हिन्दी)' : selectedLanguageRef.current === 'mr-IN' ? 'Marathi (मराठी)' : 'English';
+          logActivity(`Live transcription pipeline initialized in ${langDisplay}.`, 'normal');
         } else {
+          setSpeechSupported(false);
           logActivity('Web Speech API not available in this browser. Voice decibel monitoring remains active.', 'normal');
         }
       } catch (err) {
@@ -392,12 +511,20 @@ function App() {
     }
   };
 
-  // Simulate SOS (Demo Action connected to Alert Pipeline)
+  // Simulate SOS (Demo Action connected to Email Alert Pipeline)
   const simulateSOS = () => {
     logActivity('Simulation triggered by user (Demo Mode)', 'alert');
     setAcousticDb(82.4);
-    setTranscript((prev) => [...prev, 'Emergency: "check the oven" spoken in distress']);
-    triggerDistress('Simulated distress event ("check the oven")', 'check the oven');
+
+    const demoPhrases = {
+      'hi-IN': 'मुझे मदद चाहिए',
+      'mr-IN': 'मला मदत हवी आहे',
+      'en-US': 'Check the oven'
+    };
+    const spokenDemo = demoPhrases[selectedLanguage] || 'Check the oven';
+
+    setTranscript((prev) => [...prev, `Emergency (Demo SOS): "${spokenDemo}"`]);
+    triggerDistress(`Simulated distress event ("${spokenDemo}")`, spokenDemo);
   };
 
   // Resolve Alert / Mark Safe (Stops location watch, resets alertId)
@@ -457,7 +584,7 @@ function App() {
 
       {/* 3. Main Dashboard Grid */}
       <main className="dashboard-grid" style={{ position: 'relative', zIndex: 1, flex: 1 }}>
-        {/* LEFT COLUMN: Live Transcription (Top Left Box), Protection Status & Metrics */}
+        {/* LEFT COLUMN: Live Transcription with Hindi/Marathi Selector, Status & Metrics */}
         <section className="left-sidebar-column">
           <LiveTranscription
             transcript={transcript}
@@ -465,6 +592,10 @@ function App() {
             isCallActive={isCallActive}
             isDistress={isDistress}
             secretPhrases={secretPhrases}
+            selectedLanguage={selectedLanguage}
+            onLanguageChange={handleLanguageChange}
+            backendStatus={backendStatus}
+            speechSupported={speechSupported}
           />
           <MonitoringStatus 
             isDistress={isDistress} 
@@ -526,7 +657,7 @@ function App() {
         <section className="right-sidebar-column">
           <SecretPhrases
             phrases={secretPhrases}
-            onUpdatePhrases={setSecretPhrases}
+            onUpdatePhrases={handleUpdatePhrases}
           />
           <TrustedContacts
             contacts={trustedContacts}

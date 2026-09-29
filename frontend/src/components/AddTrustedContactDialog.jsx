@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 
 const PRIORITY_OPTIONS = ['Primary', 'Secondary', 'Backup'];
 const STATUS_OPTIONS = ['Active', 'Disabled'];
@@ -279,6 +279,7 @@ const AddTrustedContactDialogContent = ({ onClose, onSave, editingContact }) => 
               )}
             </div>
           </div>
+
 
           {/* Priority & Status Row */}
           <div style={{
